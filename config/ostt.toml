@@ -1,0 +1,43 @@
+config_version = "0.0.25"
+[transcription]
+provider = "whisper"
+model = "base"
+
+[audio]
+# Audio device to use.
+# Options:
+#   "default"          - Use system default device
+#   "0", "1", "2", ... - Use device by index (see ostt list-devices)
+#   "device name"      - Use device by name (see ostt list-devices)
+#
+# Examples:
+#   device = "0"           # Use first device
+#   device = "AMS-24"      # Use device named "AMS-24"
+#   device = "pipewire"    # Use device named "pipewire"
+#
+# To see available devices, run: ostt list-devices
+device = "default"
+
+# Output audio format (uses ffmpeg for conversion)
+# Format: "codec [ffmpeg_options]"
+# All audio is saved mono with ffmpeg handling resampling/compression
+#
+# Recommended formats:
+#   "mp3 -ab 16k -ar 12000" - MP3 16kbps 12kHz (Whisper API optimal, ~1.8 MB/hour)
+#   "libopus -ab 32k -ar 16000" - OGG Opus 32kbps 16kHz (~3.6 MB/hour)
+#   "aac -ab 32k -ar 16000" - AAC 32kbps 16kHz (~3.6 MB/hour)
+#   "flac -ar 16000" - FLAC 16kHz lossless (~20 MB/hour)
+#   "pcm_s16le" - WAV PCM original rate (largest, no compression)
+#
+# Add more formats as needed - ffmpeg handles the rest!
+output_format = "mp3 -ab 16k -ar 12000"
+
+# Omarchy Super+V / terminal paste uses shift+insert.
+[output.paste]
+paste_key = "shift+insert"
+post_popup_delay_ms = 1000
+
+[process.actions.agent]
+name = "Send to default agent"
+type = "bash"
+command = "setsid -f omarchy agent prompt \"$(cat)\" </dev/null >/dev/null 2>&1"

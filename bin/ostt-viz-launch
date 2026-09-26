@@ -1,0 +1,19 @@
+#!/bin/bash
+# Toggle the ostt spectrum dictation popup.
+# First press opens the analyzer and starts recording.
+# Any press while it is running finishes recording and transcribes.
+PIDFILE="$HOME/.config/ostt-viz.pid"
+VIZ="/home/d1v1d3dd3v3l0p3r/.local/bin/ostt-viz"
+
+if [ -f "$PIDFILE" ]; then
+  PID=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+    kill -USR1 "$PID" 2>/dev/null
+    exit 0
+  fi
+  rm -f "$PIDFILE"
+fi
+
+LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 setsid -f ghostty --class=ostt-popup --font-family="JetBrainsMono Nerd Font" --font-size=13 --title=ostt --window-padding-x=0 --window-padding-y=0 \
+  --window-width=1280 --window-height=210 --window-position-x=0 --window-position-y=810 \
+  -e "$VIZ" >/dev/null 2>&1

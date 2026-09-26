@@ -1,0 +1,18 @@
+# virtualenvs and models
+lib/
+bin/python*
+*.onnx
+*.onnx.json
+*.tar.gz
+
+# generated audio
+*.wav
+*.mp3
+assist-player/
+screenshots/full*.png
+
+# local state
+*.pid
+*paste-flag*
+__pycache__/
+*.pyc

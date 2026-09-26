@@ -1,0 +1,296 @@
+#!/home/d1v1d3dd3v3l0p3r/.local/opencode-assist/bin/python
+import fcntl, math, os, select, shlex, signal, struct, subprocess, sys, termios, time, tty
+import numpy as np
+
+# The popup is launched from a Hyprland keybind, which often has no LANG set.
+# Without this the block-drawing characters render as mojibake.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+RATE = 16000
+ROWS = 5
+SOURCE = os.environ.get("OSTT_VIZ_SOURCE", "default")
+CAPTURE = os.environ.get("OSTT_VIZ_CAPTURE")
+NOPASTE = os.environ.get("OSTT_VIZ_NOPASTE") == "1"
+DEBUG = os.environ.get("OSTT_VIZ_DEBUG") == "1"
+WAV = "/tmp/ostt-viz-%d.wav" % os.getpid()
+PIDFILE = os.path.expanduser("~/.config/ostt-viz.pid")
+DB_FLOOR = 78.0
+
+state = {"stop": False, "cancel": False, "paused": False, "peaks": None}
+
+
+def on_signal(sig, frame):
+    state["stop"] = True
+
+
+for s in (signal.SIGUSR1, signal.SIGTERM, signal.SIGINT):
+    signal.signal(s, on_signal)
+
+win = np.hanning(2048).astype(np.float32)
+
+
+def color_for(n):
+    n = max(0.0, min(1.0, n))
+    if n < 0.38:
+        t = n / 0.38
+        return 0, int(120 + 110 * t), 50
+    if n < 0.46:
+        t = (n - 0.38) / 0.08
+        return int(255 * t), int(230 + 25 * t), int(50 * (1 - t))
+    if n < 0.72:
+        t = (n - 0.46) / 0.26
+        return 255, int(255 - 20 * t), 0
+    if n < 0.82:
+        t = (n - 0.72) / 0.10
+        return 255, int(235 - 195 * t), 0
+    t = (n - 0.82) / 0.18
+    return 255, int(40 + 60 * t), 0
+
+
+def term_size():
+    buf = struct.pack("HHHH", 0, 0, 0, 0)
+    fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, buf)
+    rows, cols, _, _ = struct.unpack("HHHH", buf)
+    return max(rows, 10), max(cols, 40)
+
+
+def compute(bands_n, cols):
+    n = cols - 10
+    edges = np.geomspace(70, 12000, n + 1)
+    freqs = np.fft.rfftfreq(2048, 1.0 / RATE)
+    out = np.zeros(n)
+    for i in range(n):
+        m = (freqs >= edges[i]) & (freqs < edges[i + 1])
+        out[i] = bands_n[m].max() if m.any() else 0.0
+    return out
+
+
+def render(vals, peaks, cols, rows, elapsed, level):
+    top = rows - ROWS
+    grid_row = top - 1
+    lines = []
+
+    for r in range(rows):
+        lines.append("\x1b[%d;1H\x1b[K" % (r + 1))
+
+    head = "  * REC" if not state["paused"] else "  || PAUSED"
+    head += "  %05.1fs   peak %5.1f dB   40 Hz - 12 kHz" % (elapsed, level)
+    sys.stdout.write("\x1b[1;1H" + head[:cols - 1] + "\x1b[K")
+    lines[0] = head
+
+    scale = "  " + "".join(
+        ("\x1b[38;2;70;74;80m|\x1b[0m" if i % 12 == 0 else "\x1b[38;2;34;37;42m.\x1b[0m")
+        for i in range(cols - 4)
+    )
+    sys.stdout.write("\x1b[%d;1H%s\x1b[K" % (grid_row + 1, scale[:cols - 1]))
+    lines[grid_row] = scale
+
+    for i in range(ROWS):
+        r = grid_row - 1 - i
+        y = (i + 0.5) / ROWS
+        row = "  "
+        for c in range(cols - 4):
+            v = vals[c] if c < len(vals) else 0.0
+            p = peaks[c] if c < len(peaks) else 0.0
+            if v >= y or p >= y:
+                if p >= y and p > v:
+                    row += "\x1b[38;2;255;60;40m@"
+                else:
+                    red, green, blue = color_for(v)
+                    row += "\x1b[38;2;%d;%d;%dm#" % (red, green, blue)
+            else:
+                row += " "
+        sys.stdout.write("\x1b[%d;1H%s\x1b[K" % (r + 1, row))
+        lines[r] = row
+
+    lbl = "  %4.0f" % (level - DB_FLOOR)
+    sys.stdout.write("\x1b[%d;1H%s\x1b[K" % (rows, lbl))
+    lines[rows - 1] = lbl
+    sys.stdout.write("\x1b[?25l")
+    return lines
+
+
+def main():
+    try:
+        pid = int(open(PIDFILE).read().strip())
+        os.kill(pid, 0)
+        os.kill(pid, signal.SIGUSR1)
+        return
+    except Exception:
+        pass
+    try:
+        open(PIDFILE, "w").write(str(os.getpid()))
+    except Exception:
+        pass
+
+    proc = None
+    if CAPTURE:
+        fh = open(CAPTURE, "rb")
+    else:
+        proc = subprocess.Popen(
+            ["pw-record", "--format=s16", "--rate=%d" % RATE, "--channels=1",
+             "--target", SOURCE, WAV], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(60):
+            if os.path.exists(WAV) and os.path.getsize(WAV) > 44:
+                break
+            time.sleep(0.05)
+        fh = open(WAV, "rb")
+        fh.seek(44)
+
+    sys.stdout.write("\x1b[?1049h\x1b[2J")
+    stdin_fd = sys.stdin.fileno()
+    old = termios.tcgetattr(stdin_fd)
+    tty.setcbreak(stdin_fd)
+    start = time.time()
+    buf = b""
+    peaks = None
+    level = 0.0
+    last = 0.0
+    try:
+        while not state["stop"]:
+            chunk = fh.read(8192)
+            if chunk:
+                buf += chunk
+                if len(buf) > 16384:
+                    buf = buf[-4096:]
+            while select.select([stdin_fd], [], [], 0)[0]:
+                ch = os.read(stdin_fd, 1)
+                if ch in (b"\r", b"\n"):
+                    state["stop"] = True
+                elif ch == b" ":
+                    state["paused"] = not state["paused"]
+                elif ch in (b"\x1b", b"q", b"Q", b"\x03"):
+                    state["stop"] = True
+                    state["cancel"] = True
+            if state["stop"]:
+                break
+            now = time.time()
+            if now - last < 0.045:
+                time.sleep(0.004)
+                continue
+            last = now
+            rows, cols = term_size()
+            arr = np.frombuffer(buf[-4096:] if len(buf) >= 4096 else buf, dtype=np.int16)
+            if arr.size >= 256:
+                x = arr.astype(np.float32)
+                if len(x) < 2048:
+                    x = np.pad(x, (0, 2048 - len(x)))
+                spec = np.abs(np.fft.rfft(x * win))
+                peak = max(float(spec.max()), 1e-9)
+                shape = np.clip(
+                    (20 * np.log10(np.maximum(spec / peak, 1e-6)) + DB_FLOOR) / DB_FLOOR,
+                    0.0, 1.0)
+                frame_db = 20 * math.log10(max(float(np.sqrt(np.mean(x * x))), 1.0) / 32768.0)
+                drive = max(0.18, min(1.0, (frame_db + 48.0) / 48.0))
+                vals = compute(shape, cols) * drive
+                level = max(0.0, frame_db)
+            else:
+                vals = np.zeros(max(cols - 10, 1))
+            if peaks is None or len(peaks) != len(vals):
+                peaks = vals.copy()
+            else:
+                peaks = np.maximum(peaks - 0.012, vals)
+            lines = render(vals, peaks, cols, rows, now - start, level)
+            if DEBUG:
+                cols_seen = set()
+                for l in lines:
+                    i = 0
+                    while True:
+                        i = l.find("38;2;", i)
+                        if i < 0:
+                            break
+                        cols_seen.add(l[i:i + 16])
+                        i += 6
+                sys.stderr.write("\n".join(sorted(cols_seen)) + "\n---\n")
+                sys.stderr.flush()
+            sys.stdout.flush()
+    finally:
+        termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old)
+        sys.stdout.write("\x1b[?25h\x1b[?1049l")
+        sys.stdout.flush()
+        if proc:
+            proc.send_signal(signal.SIGINT)
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                proc.kill()
+        fh.close()
+        try:
+            os.remove(PIDFILE)
+        except Exception:
+            pass
+
+    if state["cancel"]:
+        print("cancelled")
+        return
+
+    for _ in range(80):
+        if os.path.exists(WAV) and os.path.getsize(WAV) > 2000:
+            break
+        time.sleep(0.1)
+    ready = "/tmp/ostt-viz-ready-%d.wav" % os.getpid()
+    try:
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", WAV,
+                        "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", ready],
+                       timeout=60, check=True)
+    except Exception:
+        ready = WAV
+    text = ""
+    try:
+        text = subprocess.run(["ostt", "transcribe", ready], capture_output=True,
+                              text=True, timeout=300).stdout.strip()
+    except Exception:
+        text = ""
+    try:
+        os.remove(ready)
+    except Exception:
+        pass
+    if not text:
+        sys.stdout.write("\x1b[?25h\x1b[?1049l")
+        print("  heard nothing - no speech above the noise floor")
+        print("  (clipboard left untouched)")
+        time.sleep(3.0)
+        try:
+            os.remove(WAV)
+        except Exception:
+            pass
+        return
+
+    if not NOPASTE:
+        try:
+            subprocess.run(["wl-copy"], input=text, text=True, timeout=10)
+        except Exception:
+            pass
+        # Hand focus back to the window the user was typing in, once this
+        # popup is actually gone, then drop a flag so the Hyprland config can
+        # paste. Keystroke injection is impossible from out here (no
+        # virtual-keyboard protocol), so the config does the paste.
+        flag = "/tmp/ostt-viz-paste-flag"
+        poll = ("for i in $(seq 1 80); do "
+                "n=$(hyprctl -j clients 2>/dev/null | python3 -c "
+                "\"import json,sys;print(len([x for x in json.load(sys.stdin) "
+                "if x.get('class')=='ostt-popup']))\" 2>/dev/null); "
+                "[ \"$n\" = \"0\" ] && break; sleep 0.25; done; "
+                "hyprctl eval 'hl.dispatch(hl.dsp.focus({last=true}))' >/dev/null 2>&1; "
+                "sleep 0.4; printf ok > " + flag)
+        subprocess.Popen(["/bin/bash", "-c", poll], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    sys.stdout.write("\x1b[?25h\x1b[?1049l")
+    sys.stdout.flush()
+    print("  " + text)
+    print("")
+    print("  transcribing done - pasting automatically")
+    sys.stdout.flush()
+    time.sleep(2.5)
+    try:
+        os.remove(WAV)
+    except Exception:
+        pass
+
+
+main()
