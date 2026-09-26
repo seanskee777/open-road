@@ -31,8 +31,8 @@
 -- Dictation with the green/yellow/red spectrum analyzer pinned to the bottom.
 -- Press once to start, press again to finish and transcribe.
 -- Transcription is handled by ostt; only the recorder front-end is ours.
-o.bind("ALT + SPACE", "Dictate (spectrum)", "'/home/d1v1d3dd3v3l0p3r/.local/bin/ostt-viz-launch'")
-o.bind("ALT + SHIFT + SPACE", "OSTT to default agent", "'/home/d1v1d3dd3v3l0p3r/.local/bin/ostt' launch -p agent")
+o.bind("ALT + SPACE", "Dictate (spectrum)", "'/home/YOUR_USERNAME/.local/bin/ostt-viz-launch'")
+o.bind("ALT + SHIFT + SPACE", "OSTT to default agent", "'/home/YOUR_USERNAME/.local/bin/ostt' launch -p agent")
 
 -- Auto-paste for dictation.
 -- Keystroke injection only works from inside the Hyprland config: this
@@ -88,4 +88,4 @@ viz_watch_paste_flag()
 -- Keep this on Super+Shift+V: Ctrl+Super+V collides with omarchy's clipboard
 -- manager (both resolve to modmask 68) and the clipboard manager wins.
 -- Disable auto-speech by writing 0 to ~/.config/opencode-assist/speak.enabled.
-o.bind("SUPER + SHIFT + V", "TTS read aloud", "'/home/d1v1d3dd3v3l0p3r/.local/opencode-assist/speak.sh'")
+o.bind("SUPER + SHIFT + V", "TTS read aloud", "'/home/YOUR_USERNAME/.local/opencode-assist/speak.sh'")

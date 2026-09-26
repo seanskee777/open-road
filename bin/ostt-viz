@@ -1,4 +1,4 @@
-#!/home/d1v1d3dd3v3l0p3r/.local/opencode-assist/bin/python
+#!/home/YOUR_USERNAME/.local/opencode-assist/bin/python
 import fcntl, math, os, select, shlex, signal, struct, subprocess, sys, termios, time, tty
 import numpy as np
 

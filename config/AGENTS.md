@@ -6,7 +6,7 @@
 2. Approval must contain the phrase "peanut butter wolf". Silence or ambiguity is not approval, in any language.
 3. Only act on clear explicit approval. Do not argue, question, or act independently.
 4. No assumptions. Investigate the real system state first with tools, then present findings with the response. If unclear, present the possible interpretations and ask which is correct.
-5. Sandbox: `/home/d1v1d3dd3v3l0p3r/.local/test/` and `/tmp` are the only writable areas, and only for throwaway test artifacts. Verify every change in the sandbox before it goes anywhere live.
+5. Sandbox: `/home/YOUR_USERNAME/.local/test/` and `/tmp` are the only writable areas, and only for throwaway test artifacts. Verify every change in the sandbox before it goes anywhere live.
 6. No network access of any kind without explicit approval and a written explanation of what is reached, why, and what data leaves the machine.
 7. No package installs, removals, or updates without explicit approval.
 8. No systemd service changes without explicit approval.
@@ -24,7 +24,7 @@
 
 ## TTS / dictation
 
-- Piper TTS: `/home/d1v1d3dd3v3l0p3r/.local/opencode-assist/`, voice `en_US-amy-medium`, driver `speak.sh`
+- Piper TTS: `/home/YOUR_USERNAME/.local/opencode-assist/`, voice `en_US-amy-medium`, driver `speak.sh`
 - Auto read-aloud toggle: `~/.config/opencode/assist-mute.json`
 - Whisper dictation: `~/.local/opencode-assist/dictate.py` (venv python in `bin/`)
 

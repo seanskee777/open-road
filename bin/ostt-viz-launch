@@ -3,7 +3,7 @@
 # First press opens the analyzer and starts recording.
 # Any press while it is running finishes recording and transcribes.
 PIDFILE="$HOME/.config/ostt-viz.pid"
-VIZ="/home/d1v1d3dd3v3l0p3r/.local/bin/ostt-viz"
+VIZ="/home/YOUR_USERNAME/.local/bin/ostt-viz"
 
 if [ -f "$PIDFILE" ]; then
   PID=$(cat "$PIDFILE" 2>/dev/null)

@@ -4,11 +4,11 @@
 # Toggle: write 0 to ~/.config/opencode-assist/speak.enabled to disable auto-speech
 # Stop: press Super+Shift+V again while speaking to stop playback mid-stream
 # Default: length_scale=0.85, volume=1.0
-MODEL="/home/d1v1d3dd3v3l0p3r/.local/share/piper/voices/en_US-amy-medium.onnx"
-TOGGLE="/home/d1v1d3dd3v3l0p3r/.config/opencode-assist/speak.enabled"
-PIDFILE="/home/d1v1d3dd3v3l0p3r/.config/opencode-assist/speak.pid"
+MODEL="/home/YOUR_USERNAME/.local/share/piper/voices/en_US-amy-medium.onnx"
+TOGGLE="/home/YOUR_USERNAME/.config/opencode-assist/speak.enabled"
+PIDFILE="/home/YOUR_USERNAME/.config/opencode-assist/speak.pid"
 WAVFILE="/tmp/opencode_speak.wav"
-VENV="/home/d1v1d3dd3v3l0p3r/.local/opencode-assist/bin/python"
+VENV="/home/YOUR_USERNAME/.local/opencode-assist/bin/python"
 # Preferred output: laptop internal speaker.
 SINK="alsa_output.pci-0000_03_00.6.HiFi__Speaker__sink"
 
@@ -52,8 +52,8 @@ VOLUME="${3:-1.0}"
 
 "$VENV" -c "
 import sys, os, wave, subprocess, time
-sys.path.insert(0, '/home/d1v1d3dd3v3l0p3r/.local/opencode-assist/lib/python3.14/site-packages')
-os.chdir('/home/d1v1d3dd3v3l0p3r/.local/share/piper/voices')
+sys.path.insert(0, '/home/YOUR_USERNAME/.local/opencode-assist/lib/python3.14/site-packages')
+os.chdir('/home/YOUR_USERNAME/.local/share/piper/voices')
 from piper import PiperVoice
 from piper.config import SynthesisConfig
 
